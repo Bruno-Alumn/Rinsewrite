@@ -1,0 +1,76 @@
+name: Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  unit:
+    name: Unit tests
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      # Warnings fail the build, so new ones get fixed rather than pile up.
+      - name: Unit tests
+        run: swift test -Xswiftc -warnings-as-errors
+
+  app:
+    name: App bundle and launch check
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Build app bundle
+        run: make bundle
+
+      # Launch the built app, interface and all, and fail on runaway CPU or
+      # memory. CI has no model, so this checks the app, not the engine.
+      - name: Launch check
+        run: scripts/launch_check.sh dist/Rinsewrite.app
+        env:
+          MAX_CPU: 10
+          MEASURE_SECONDS: 30
+
+  engine:
+    name: Engine syntax
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Compile engine and fine-tuning scripts
+        run: python3 -m py_compile engine/*.py engine/tests/*.py finetune/*.py
+
+  # Commits and the pull request description credit people only: no AI tool
+  # as an author or co-author (merges use the PR title and description).
+  credits:
+    name: No AI credits
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+
+      - name: Check commits and description
+        env:
+          BODY: ${{ github.event.pull_request.body }}
+        run: >
+          scripts/check_no_ai_credit.sh
+          ${{ github.event.pull_request.base.sha }}
+          ${{ github.event.pull_request.head.sha }}
+
+  # The status check branch protection requires. It runs even when a job
+  # above fails, and passes only if all of them did.
+  test:
+    needs: [unit, app, engine, credits]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: All jobs passed
+        run: |
+          echo "unit: ${{ needs.unit.result }}, app: ${{ needs.app.result }}, engine: ${{ needs.engine.result }}, credits: ${{ needs.credits.result }}"
+          test "${{ needs.unit.result }}" = success
+          test "${{ needs.app.result }}" = success
+          test "${{ needs.engine.result }}" = success
+          test "${{ needs.credits.result }}" = success -o "${{ needs.credits.result }}" = skipped

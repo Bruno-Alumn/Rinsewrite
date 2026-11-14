@@ -1,0 +1,12 @@
+.build/
+dist/
+.DS_Store
+*.xcodeproj
+events/
+.venv/
+__pycache__/
+engine/adapter/
+finetune/adapter/
+finetune/data/train.jsonl
+finetune/data/valid.jsonl
+finetune/*.log

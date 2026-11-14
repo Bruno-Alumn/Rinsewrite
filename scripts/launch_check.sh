@@ -1,0 +1,58 @@
+#!/bin/sh
+# Launch the built app as a user would, interface and all, and fail if it
+# runs away: high CPU or growing memory. The unit tests don't run the app's
+# SwiftUI scene, so a scene update loop would get past them.
+#
+# Run via `make test`. It launches a copy with its own bundle ID, so the real
+# app's settings and Accessibility grant are never touched, and the copy
+# neither starts the engine nor asks for Accessibility access.
+set -eu
+
+BUNDLE=$1
+ID=io.github.bruno-alumn.rinsewrite.healthcheck
+MAX_CPU=${MAX_CPU:-5}          # percent of one core, averaged over the window
+MEASURE_SECONDS=${MEASURE_SECONDS:-15}
+MAX_RSS_MB=250
+
+work=$(mktemp -d)
+pid=""
+cleanup() {
+    [ -n "$pid" ] && kill "$pid" 2>/dev/null || true
+    defaults delete "$ID" >/dev/null 2>&1 || true
+    rm -f "$HOME/Library/Preferences/$ID.plist"
+    rm -rf "$work"
+}
+trap cleanup EXIT
+
+cp -R "$BUNDLE" "$work/"
+app="$work/$(basename "$BUNDLE")"
+/usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier $ID" "$app/Contents/Info.plist"
+codesign --force --sign - "$app" 2>/dev/null
+defaults write "$ID" hasFinishedWelcome -bool true
+
+"$app/Contents/MacOS/Rinsewrite" --health-check >/dev/null 2>&1 &
+pid=$!
+
+cpu_seconds() {
+    ps -o time= -p "$pid" | awk -F'[:-]' '{ s = 0; for (i = 1; i <= NF; i++) s = s * 60 + $i; print s }'
+}
+
+sleep 6
+kill -0 "$pid" 2>/dev/null || { echo "FAIL: app exited during launch"; exit 1; }
+start=$(cpu_seconds)
+rss_start=$(ps -o rss= -p "$pid")
+sleep "$MEASURE_SECONDS"
+end=$(cpu_seconds)
+rss_end=$(ps -o rss= -p "$pid")
+
+cpu=$(echo "$start $end $MEASURE_SECONDS" | awk '{ printf "%.1f", ($2 - $1) / $3 * 100 }')
+rss=$((rss_end / 1024))
+growth=$(((rss_end - rss_start) / 1024))
+echo "launched app: ${cpu}% CPU, ${rss} MB memory (${growth} MB growth over ${MEASURE_SECONDS} s)"
+
+failed=0
+awk "BEGIN { exit !($cpu > $MAX_CPU) }" && { echo "FAIL: CPU above ${MAX_CPU}%"; failed=1; }
+[ "$rss" -gt "$MAX_RSS_MB" ] && { echo "FAIL: memory above ${MAX_RSS_MB} MB"; failed=1; }
+[ "$growth" -gt 20 ] && { echo "FAIL: memory still growing"; failed=1; }
+[ "$failed" -eq 0 ] && echo "OK"
+exit "$failed"
