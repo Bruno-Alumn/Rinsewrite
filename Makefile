@@ -76,9 +76,9 @@ train:
 	"$(VENV)" finetune/build_dataset.py
 	"$(VENV)" finetune/train.py --epochs 2
 
-# Rebuild Resources/AppIcon.icns and docs/logo.png.
+# Rebuild Resources/AppIcon.icns and docs/logo.png from packaging/icon-source.png.
 icon:
-	swift scripts/make_icon.swift Resources/AppIcon.icns docs/logo.png
+	swift scripts/make_icon.swift packaging/icon-source.png Resources/AppIcon.icns docs/logo.png
 
 # Render the settings window for the README, light and dark.
 screenshots: bundle

@@ -193,7 +193,7 @@ make install   # build, copy to /Applications and open
 make test         # unit tests and a launch check
 make eval         # typo, language and meaning-drift checks against the real model
 make train        # fine-tune the LoRA adapter (about 75 minutes on an M1 Max)
-make icon         # redraw the app icon
+make icon         # rebuild the app icon from packaging/icon-source.png
 make screenshots  # render the settings window for this README
 make dmg          # dist/Rinsewrite-<version>.dmg
 ```
