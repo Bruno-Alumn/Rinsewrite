@@ -26,11 +26,11 @@ enum SettingsPage: String, CaseIterable, Identifiable {
         }
     }
 
-    /// The same families System Settings uses: teal for the app's own
+    /// The same families System Settings uses: the icon's blue for the app's own
     /// work, green for resources, gray for the rest.
     var color: Color {
         switch self {
-        case .rinse: .rinseTeal
+        case .rinse: .rinseBlue
         case .shortcut: .gray
         case .memory: .green
         case .general: .gray
