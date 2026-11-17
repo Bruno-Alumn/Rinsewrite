@@ -66,6 +66,7 @@ final class EngineClient {
     var pid: Int32? { queue.sync { process?.processIdentifier } }
 
     func start(grammar: Double, humanize: Double) {
+        signal(SIGPIPE, SIG_IGN)
         queue.async { self.launch(grammar: grammar, humanize: humanize) }
     }
 
@@ -80,6 +81,7 @@ final class EngineClient {
 
     private func launch(grammar: Double, humanize: Double) {
         lastSliders = (grammar, humanize)
+        buffer.removeAll()
         guard Self.isInstalled else {
             state = .notInstalled
             return
@@ -96,12 +98,17 @@ final class EngineClient {
         let input = Pipe(), output = Pipe()
         p.standardInput = input
         p.standardOutput = output
-        FileManager.default.createFile(atPath: Self.logURL.path, contents: nil)
-        p.standardError = (try? FileHandle(forWritingTo: Self.logURL)) ?? FileHandle.nullDevice
+        let logURL = Self.logURL
+        if restarts == 0 || !FileManager.default.fileExists(atPath: logURL.path) {
+            FileManager.default.createFile(atPath: logURL.path, contents: nil)
+        }
+        let log = try? FileHandle(forWritingTo: logURL)
+        _ = try? log?.seekToEnd()
+        p.standardError = log ?? FileHandle.nullDevice
 
         output.fileHandleForReading.readabilityHandler = { [weak self] handle in
             let data = handle.availableData
-            guard !data.isEmpty else { return }
+            guard !data.isEmpty else { handle.readabilityHandler = nil; return }
             self?.queue.async { self?.consume(data) }
         }
         p.terminationHandler = { [weak self] proc in
@@ -162,7 +169,10 @@ final class EngineClient {
         guard let stdin, let data = try? JSONSerialization.data(withJSONObject: request) else { return false }
         var line = data
         line.append(0x0A)
-        stdin.write(line)
+        do { try stdin.write(contentsOf: line) } catch {
+            rlog.error("engine write failed: \(error.localizedDescription, privacy: .public)")
+            return false
+        }
         return true
     }
 

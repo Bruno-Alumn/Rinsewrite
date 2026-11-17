@@ -22,5 +22,5 @@ else
 fi
 
 echo "Model:"
-"$VENV/bin/python" -c "import sys; sys.path.insert(0, '$ROOT/engine'); import engine; print(engine.model_path())"
+"$VENV/bin/python" -c "import sys; sys.path.insert(0, sys.argv[1]); import engine; print(engine.model_path())" "$ROOT/engine"
 echo "Engine ready in $VENV"

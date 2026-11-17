@@ -51,22 +51,24 @@ class Engine:
         from mlx_vlm import load
 
         t = time.time()
-        self.model, proc = load(model_path())
+        model, proc = load(model_path())
         self.tok = getattr(proc, "tokenizer", proc)
         # Fine-tuned LoRA adapter (finetune/train.py): it learned the task, so the prompt can
         # drop the few-shot examples. RINSEWRITE_ADAPTER=0 disables it.
-        self.adapter = None
+        adapter = None
         ad = os.environ.get("RINSEWRITE_ADAPTER", os.path.join(os.path.dirname(os.path.abspath(__file__)), "adapter"))
         if ad != "0" and os.path.exists(os.path.join(ad, "adapters.safetensors")):
             from mlx_vlm.trainer.peft.utils import load_adapters
 
-            load_adapters(self.model, ad)
-            self.model.eval()
-            self.adapter = ad
+            load_adapters(model, ad)
+            model.eval()
+            adapter = ad
         ids = self.tok.convert_tokens_to_ids
         self.stop_ids = {ids("<|im_end|>"), ids("</think>"), ids("<|endoftext|>")}
         # "</text" token sequence — closing tag of the corrected text
         self.close_seq = self._encode(prompts.STOP)[:-1]
+        self.adapter = adapter
+        self.model = model
         self.load_time = time.time() - t
 
     def unload(self):
@@ -109,7 +111,6 @@ class Engine:
 
     def warm(self, grammar: float, humanize: float):
         """Load the model if needed and pre-fill the prompt for these slider values."""
-        self.load()
         self._prefix_for(prompts.mode_for(grammar, humanize))
 
     # -- generation -------------------------------------------------------
@@ -136,9 +137,10 @@ class Engine:
 
     def _correct_safe(self, text: str, level: int, lang: str | None) -> dict:
         """Correct one line; never return a translation. Retries with Humanize off, then gives up."""
-        src_lang, src_conf = prompts.detect(text)
-        src_lang = lang or src_lang
         r = self._guarded(text, level, lang)
+        if r.get("fallback") == "unchanged":
+            return r  # the guard already tried humanize-off and rejected it
+        src_lang = lang or prompts.detect(text)[0]
         if not src_lang or self._same_lang(r["text"], src_lang):
             return r
         g, h = prompts.split_mode(level)
@@ -210,14 +212,14 @@ class Engine:
 
         cache = copy.deepcopy(self._prefix_for(level))
         suffix = self._encode(prompts.suffix(core, lang))
-        max_new = int(len(self._encode(core)) * 1.6) + 32
+        src_ids = self._encode(core)
+        max_new = int(len(src_ids) * 1.6) + 32
         logits = self._prefill(suffix, cache)
         t_first = time.time()
 
         # Copy bias: nudge decoding toward tokens already in the input so the model fixes words
         # instead of swapping in new ones (or ones from its examples). Weaker when humanizing.
         # Hint bias: nudge toward the spelling suggestions so the model actually uses them.
-        src_ids = self._encode(core)
         delta = bias if bias is not None else COPY_BIAS[prompts.split_mode(level)[1]]
         hint_words = [c for _, cs in prompts.typo_hints(core, lang) for c in cs]
         self._bias = None

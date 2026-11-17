@@ -4,7 +4,7 @@
   .venv/bin/python finetune/eval_valid.py                         # with finetune/adapter
 Score = exact match after normalizing case/punctuation, and word-level F1 vs the target.
 """
-import json, os, random, re, sys, time
+import os, random, re, sys, time
 from collections import Counter
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -30,15 +30,7 @@ def f1(out, ref):
 
 
 def main():
-    rows = []
-    import glob
-    for path in sorted(glob.glob(os.path.join(HERE, "data", "*_raw*.jsonl"))):
-        rows += [json.loads(l) for l in open(path) if l.strip()]
-    banned = bd.test_sentences()
-    rows = [r for r in rows if bd._norm(r.get("broken", r.get("ai", ""))) not in banned]
-    random.seed(7)
-    random.shuffle(rows)  # same order as build_dataset -> first n are the valid split
-    valid = rows[: max(20, len(rows) // 12)]
+    valid, _ = bd.load_split()
     random.seed(123)
     e = Engine(max_modes=15)
     print("adapter:", e.adapter)

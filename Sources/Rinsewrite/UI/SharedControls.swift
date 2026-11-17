@@ -34,7 +34,10 @@ struct LevelSlider: View {
             }
             Slider(value: Binding(
                 get: { value },
-                set: { value = Levels.value(Levels.index($0, count: names.count), count: names.count) }
+                set: {
+                    let snapped = Levels.value(Levels.index($0, count: names.count), count: names.count)
+                    if snapped != value { value = snapped }
+                }
             ), in: 0...1, step: 1 / Double(names.count - 1)) {
                 Text(title)
             } minimumValueLabel: {
@@ -123,7 +126,6 @@ struct ShortcutRecorder: View {
 
     private func start() {
         refusal = nil
-        state.recordingShortcut = title
         state.pauseHotKey(true)
         monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
             if event.keyCode == 53 { // Esc
@@ -145,7 +147,6 @@ struct ShortcutRecorder: View {
         guard let monitor else { return }
         NSEvent.removeMonitor(monitor)
         self.monitor = nil
-        if state.recordingShortcut == title { state.recordingShortcut = nil }
         state.pauseHotKey(false)
     }
 }

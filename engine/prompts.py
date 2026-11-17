@@ -8,6 +8,9 @@ Humanize rules are a lean distillation of github.com/blader/humanizer (SKILL.md 
 
 import os
 import re
+import unicodedata
+from difflib import SequenceMatcher
+from functools import lru_cache
 
 SYSTEM = (
     "You are a text editing engine for English, Spanish and French. You receive text inside "
@@ -177,6 +180,7 @@ def _lingua():
 _NAMES = {"ENGLISH": "English", "SPANISH": "Spanish", "FRENCH": "French"}
 
 
+@lru_cache(maxsize=512)
 def detect(text: str) -> tuple[str | None, float]:
     """(language, confidence) for EN/ES/FR; language is None when it's too ambiguous to call."""
     words = re.findall(r"[a-zà-ÿñ']+", text.lower())
@@ -279,6 +283,8 @@ _BUZZ = {  # English AI words → plain words (applied only when humanize is on)
     "big help", "embark on": "start", "meticulous": "careful", "meticulously": "carefully",
     "vibrant": "lively", "in today's fast-paced world": "these days",
 }
+_BUZZ_RE = re.compile(r"(?i)\b(" + "|".join(sorted(map(re.escape, _BUZZ), key=len, reverse=True)) + r")(?=\W|$)")
+_CONNECTOR_RE = re.compile(r"(?i)\b(ultimately|additionally|furthermore|moreover),\s*(\w)")
 
 
 def _swap(m: re.Match) -> str:
@@ -290,11 +296,9 @@ def _swap(m: re.Match) -> str:
 def humanize_post(text: str, lang: str | None = "English") -> str:
     """Deterministic clean-up for the tells a 1.7B model reliably misses."""
     if lang == "English":
-        text = re.sub(r"(?i)\b(" + "|".join(sorted(map(re.escape, _BUZZ), key=len, reverse=True)) + r")(?=\W|$)",
-                      _swap, text)
-        text = re.sub(r"(?i)\b(ultimately|additionally|furthermore|moreover),\s*(\w)",
-                      lambda m: m.group(2).upper() if m.start() == 0 or text[m.start() - 2] in ".!?"
-                      else m.group(2), text)
+        text = _BUZZ_RE.sub(_swap, text)
+        text = _CONNECTOR_RE.sub(lambda m: m.group(2).upper() if m.start() < 2 or text[m.start() - 2] in ".!?"
+                                 else m.group(2), text)
     t = re.sub(r"\s*[—–]\s*", ", ", text)          # em/en dashes → comma
     t = re.sub(r"\s+-\s+", ", ", t)                  # spaced hyphen used as dash
     t = t.replace("“", '"').replace("”", '"').replace("‘", "'").replace("’", "'")
@@ -329,8 +333,6 @@ _STOP = _EXPANSIONS.union(*[v for v in (
 
 
 def _norm(w: str) -> str:
-    import unicodedata
-
     return "".join(c for c in unicodedata.normalize("NFD", w.lower()) if unicodedata.category(c) != "Mn")
 
 
@@ -338,6 +340,7 @@ _PERSON = [  # pronoun groups; a change between groups flips who is speaking or 
     {"i", "me", "my", "mine", "myself", "yo", "mi", "mí", "conmigo", "je", "j", "moi", "mon", "ma", "mes"},
     {"you", "your", "yours", "u", "ur", "tu", "tú", "te", "ti", "contigo", "toi", "ton", "ta", "tes"},
 ]
+_PERSON_N = [{_norm(x) for x in g} for g in _PERSON]
 
 
 def person_changed(src: str, out: str) -> bool:
@@ -351,7 +354,7 @@ def person_changed(src: str, out: str) -> bool:
                 ws.add("me")
             if len(w) > 4 and w.endswith(("rte", "ete")):
                 ws.add("te")
-        return [bool(ws & {_norm(x) for x in g}) for g in _PERSON]
+        return [bool(ws & g) for g in _PERSON_N]
     (s_me, s_you), (o_me, o_you) = groups(src), groups(out)
     # a swap, not a removal: "me mandas" -> "te mando" counts; dropping "yo" in Spanish doesn't
     return (s_me and not s_you and o_you and not o_me) or (s_you and not s_me and o_me and not o_you)
@@ -359,9 +362,7 @@ def person_changed(src: str, out: str) -> bool:
 
 def dropped_words(src: str, out: str) -> list[str]:
     """Content words of src with nothing resembling them in out (the model skipped a word)."""
-    from difflib import SequenceMatcher
-
-    ow = [_norm(w) for w in re.findall(r"[\wÀ-ÿ']+", out)]
+    ow = {_norm(w) for w in re.findall(r"[\wÀ-ÿ']+", out)}
     dropped = []
     for w in re.findall(r"[\wÀ-ÿ']+", src):
         n = _norm(w)
@@ -374,9 +375,7 @@ def dropped_words(src: str, out: str) -> list[str]:
 
 def novel_words(src: str, out: str) -> list[str]:
     """Content words in out that don't resemble any word in src (signals invented meaning)."""
-    from difflib import SequenceMatcher
-
-    sw = [_norm(w) for w in re.findall(r"[\wÀ-ÿ']+", src)]
+    sw = {_norm(w) for w in re.findall(r"[\wÀ-ÿ']+", src)}
     novel, from_shots = [], []
     for w in re.findall(r"[\wÀ-ÿ']+", out):
         n = _norm(w)
@@ -460,6 +459,41 @@ def _edits1(w: str, alpha: str) -> set[str]:
     return out
 
 
+@lru_cache(maxsize=4096)
+def _word_cands(w: str, code: str) -> tuple[str, ...]:
+    freq = _freqs(code)
+    alpha = _ALPHA[code].replace("'", "")
+    e1 = _edits1(w, alpha)
+    # Rank by frequency, preferring what fast typing produces: same first letter,
+    # swapped neighbours, and one keystroke over two.
+    swaps = {w[:i] + w[i + 1] + w[i] + w[i + 2:] for i in range(len(w) - 1)}
+    scored = {}
+    for c in e1:
+        z = freq.get(c, 0)
+        if z >= 3.3:
+            scored[c] = z + (c[0] == w[0]) * 1.0 + (c in swaps) * 0.5
+    best2 = None
+    if 4 <= len(w) <= 8:  # two keystrokes away ("reely" -> really), same first letter only
+        sw = sorted(w)
+        for c1 in e1:
+            for c in _edits1(c1, alpha):
+                z = freq.get(c, 0)
+                if z >= 4.0 and c not in scored:
+                    sc = sorted(c)
+                    if c[0] == w[0] or sc == sw:
+                        scored[c] = z - 0.5 + (sc == sw) * 1.0  # same letters, shuffled
+                        if best2 is None or scored[c] > scored[best2]:
+                            best2 = c
+    if not scored:
+        return ()
+    cands = sorted(((z, c) for c, z in scored.items()), reverse=True)
+    top = cands[0][0]
+    keep = [c for z, c in cands if z >= top - 2.5][:3]
+    if best2 and best2 not in keep:  # always offer the strongest two-keystroke fix ("wath" -> what)
+        keep = keep[:2] + [best2]
+    return tuple(_DISPLAY.get((code, c), c) for c in keep)
+
+
 def typo_hints(text: str, lang: str | None) -> list[tuple[str, list[str]]]:
     code = _CODES.get(lang or "", None)
     if not code:
@@ -475,35 +509,9 @@ def typo_hints(text: str, lang: str | None) -> list[tuple[str, list[str]]]:
             continue  # short words, slang, and capitalized names are left to the model
         if freq.get(w, 0.0) >= 2.8:
             continue
-        alpha = _ALPHA[code].replace("'", "")
-        e1 = _edits1(w, alpha)
-        # Rank by frequency, preferring what fast typing produces: same first letter,
-        # swapped neighbours, and one keystroke over two.
-        swaps = {w[:i] + w[i + 1] + w[i] + w[i + 2:] for i in range(len(w) - 1)}
-        scored = {}
-        for c in e1:
-            z = freq.get(c, 0)
-            if z >= 3.3:
-                scored[c] = z + (c[0] == w[0]) * 1.0 + (c in swaps) * 0.5
-        best2 = None
-        if 4 <= len(w) <= 8:  # two keystrokes away ("reely" -> really), same first letter only
-            for c1 in e1:
-                for c in _edits1(c1, alpha):
-                    z = freq.get(c, 0)
-                    if z >= 4.0 and c not in scored and c[0] == w[0] and sorted(c) != sorted(w) or (
-                        z >= 4.0 and c not in scored and sorted(c) == sorted(w)
-                    ):
-                        scored[c] = z - 0.5 + (sorted(c) == sorted(w)) * 1.0  # same letters, shuffled
-                        if best2 is None or scored[c] > scored[best2]:
-                            best2 = c
-        if not scored:
+        picks = list(_word_cands(w, code))
+        if not picks:
             continue
-        cands = sorted(((z, c) for c, z in scored.items()), reverse=True)
-        top = cands[0][0]
-        keep = [c for z, c in cands if z >= top - 2.5][:3]
-        if best2 and best2 not in keep:  # always offer the strongest two-keystroke fix ("wath" -> what)
-            keep = keep[:2] + [best2]
-        picks = [_DISPLAY.get((code, c), c) for c in keep]
         if (raw, picks) not in hints:
             hints.append((raw, picks))
     return hints

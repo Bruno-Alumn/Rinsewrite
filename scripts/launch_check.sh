@@ -42,6 +42,7 @@ kill -0 "$pid" 2>/dev/null || { echo "FAIL: app exited during launch"; exit 1; }
 start=$(cpu_seconds)
 rss_start=$(ps -o rss= -p "$pid")
 sleep "$MEASURE_SECONDS"
+kill -0 "$pid" 2>/dev/null || { echo "FAIL: app exited during the measurement window"; exit 1; }
 end=$(cpu_seconds)
 rss_end=$(ps -o rss= -p "$pid")
 

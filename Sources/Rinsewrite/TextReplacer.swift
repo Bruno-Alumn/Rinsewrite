@@ -81,13 +81,13 @@ enum TextReplacer {
     }
 
     /// Pastes over the selection that's still active, then restores the clipboard.
-    static func paste(_ text: String, restoring snapshot: ClipboardSnapshot) {
+    static func paste(_ text: String, restoring snapshot: ClipboardSnapshot, then done: @escaping () -> Void) {
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
         pasteboard.setString(text, forType: .string)
         // Transient, so clipboard managers don't keep it.
         pasteboard.setData(Data(), forType: NSPasteboard.PasteboardType("org.nspasteboard.TransientType"))
         pressCommand(kVK_ANSI_V)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { snapshot.restore() }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { snapshot.restore(); done() }
     }
 }

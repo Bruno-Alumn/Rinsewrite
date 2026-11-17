@@ -29,14 +29,13 @@ final class AppState: ObservableObject {
     @Published private(set) var rinsing = false
     @Published private(set) var note: String?
     @Published private(set) var shortcutTaken = false
-    /// Which shortcut recorder is listening, so only one does at a time.
-    @Published var recordingShortcut: String?
 
     private var hotKey: GlobalHotKey?
     private var idleTimer: Timer?
     private var trustTimer: Timer?
     private var warmWork: DispatchWorkItem?
     private var noteWork: DispatchWorkItem?
+    private var pinnedForSnapshot = false
 
     static let maxCharacters = 6000
 
@@ -65,9 +64,6 @@ final class AppState: ObservableObject {
         }
     }
 
-    var grammarName: String { Levels.name(grammar, in: Levels.grammar) }
-    var humanizeName: String { Levels.name(humanize, in: Levels.humanize) }
-
     func startUp() {
         engine.onStateChange = { [weak self] state in
             self?.engineState = state
@@ -89,11 +85,13 @@ final class AppState: ObservableObject {
 
     /// For `--snapshot`: shows the window as it looks once everything is set up.
     func showReadyForSnapshot() {
+        pinnedForSnapshot = true
         engineState = .ready
         accessibilityTrusted = true
     }
 
     func refreshTrust() {
+        guard !pinnedForSnapshot else { return }
         let trusted = Permissions.isTrusted
         if trusted != accessibilityTrusted { accessibilityTrusted = trusted }
     }
@@ -137,9 +135,13 @@ final class AppState: ObservableObject {
             self.engine.rinse(text, grammar: self.grammar, humanize: self.humanize) { result in
                 switch result {
                 case .success(let rinsed):
-                    if rinsed != text { TextReplacer.paste(rinsed, restoring: snapshot) } else { snapshot.restore() }
                     let ms = Int(Date().timeIntervalSince(started) * 1000)
-                    self.finish(note: rinsed == text ? "nothing to change (\(ms) ms)" : "rinsed in \(ms) ms")
+                    if rinsed != text {
+                        TextReplacer.paste(rinsed, restoring: snapshot) { self.finish(note: "rinsed in \(ms) ms") }
+                    } else {
+                        snapshot.restore()
+                        self.finish(note: "nothing to change (\(ms) ms)")
+                    }
                 case .failure(let error):
                     snapshot.restore()
                     self.fail(error.localizedDescription)

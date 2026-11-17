@@ -13,7 +13,9 @@ VENV := $(HOME)/Library/Application Support/Rinsewrite/venv/bin/python
 # ad-hoc otherwise (CI, contributors' Macs), where each rebuild needs a new
 # grant. Override with CODESIGN_ID="<identity>".
 DEVELOPER_ID := Developer ID Application: Bruno Cassina (22R95V8NA5)
-CODESIGN_ID ?= $(if $(shell security find-identity -v -p codesigning 2>/dev/null | grep -F '"$(DEVELOPER_ID)"'),$(DEVELOPER_ID),-)
+ifeq ($(origin CODESIGN_ID),undefined)
+CODESIGN_ID := $(if $(shell security find-identity -v -p codesigning 2>/dev/null | grep -F '"$(DEVELOPER_ID)"'),$(DEVELOPER_ID),-)
+endif
 
 .PHONY: all build bundle engine install run test eval train icon screenshots zip dmg release clean
 
@@ -65,7 +67,7 @@ test: bundle
 	scripts/launch_check.sh $(BUNDLE)
 
 # Quality checks against the real model (needs `make engine`): typos,
-# language, meaning drift and the held-out fine-tuning set.
+# language and meaning drift (finetune/eval_valid.py scores the held-out set).
 eval:
 	"$(VENV)" engine/tests/test_typos.py 0.5
 	"$(VENV)" engine/tests/test_language.py

@@ -1,6 +1,6 @@
 """Build LoRA training data: corrupt hand-written messages with fast-typing typos and render
 them in the exact short prompt the app uses with the adapter. Output: finetune/data/{train,valid}.jsonl"""
-import json, os, random, re, sys
+import glob, json, os, random, re, sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, "..", "engine"))
@@ -64,6 +64,22 @@ def _norm(t: str) -> str:
     return re.sub(r"[^\w]+", " ", t.lower()).strip()
 
 
+def load_split() -> tuple[list, list]:
+    """Raw messages minus test-set overlaps, shuffled with a fixed seed: (valid, train)."""
+    rows = []
+    for path in sorted(glob.glob(os.path.join(HERE, "data", "*_raw*.jsonl"))):
+        with open(path, encoding="utf-8") as f:
+            rows += [json.loads(l) for l in f if l.strip()]
+    banned = test_sentences()
+    before = len(rows)
+    rows = [r for r in rows if _norm(r.get("broken", r.get("ai", ""))) not in banned]
+    print(f"dropped {before - len(rows)} messages that overlap the test sets")
+    random.seed(7)
+    random.shuffle(rows)
+    n_valid = max(20, len(rows) // 12)
+    return rows[:n_valid], rows[n_valid:]
+
+
 def test_sentences() -> set[str]:
     """Sentences used by the eval scripts; kept out of training so scores stay honest."""
     sys.path.insert(0, os.path.join(HERE, "..", "engine", "tests"))
@@ -81,21 +97,8 @@ def render(mode: int, src: str, lang: str, target: str) -> dict:
 
 
 def main():
-    rows = []
-    import glob
-    for path in sorted(glob.glob(os.path.join(HERE, "data", "*_raw*.jsonl"))):
-        with open(path) as f:
-            for line in f:
-                line = line.strip()
-                if line:
-                    rows.append(json.loads(line))
-    banned = test_sentences()
-    before = len(rows)
-    rows = [r for r in rows if _norm(r.get("broken", r.get("ai", ""))) not in banned]
-    print(f"dropped {before - len(rows)} messages that overlap the test sets")
-    random.shuffle(rows)
-    n_valid = max(20, len(rows) // 12)
-    splits = {"valid": rows[:n_valid], "train": rows[n_valid:]}
+    valid, train = load_split()
+    splits = {"valid": valid, "train": train}
     for name, items in splits.items():
         out = []
         for r in items:
@@ -115,7 +118,7 @@ def main():
             std = targets[2]
             out.append(render(2 * prompts.H + random.choice([0, 1]), std, lang, std))
         random.shuffle(out)
-        with open(os.path.join(HERE, "data", f"{name}.jsonl"), "w") as f:
+        with open(os.path.join(HERE, "data", f"{name}.jsonl"), "w", encoding="utf-8") as f:
             for o in out:
                 f.write(json.dumps(o, ensure_ascii=False) + "\n")
         print(name, len(out), "examples from", len(items), "messages")

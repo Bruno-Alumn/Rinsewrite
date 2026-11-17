@@ -76,7 +76,7 @@ def main():
     get_peft_model(model, rank=a.rank, alpha=a.alpha, dropout=0.05)
 
     def read(name):
-        with open(os.path.join(HERE, "data", f"{name}.jsonl")) as f:
+        with open(os.path.join(HERE, "data", f"{name}.jsonl"), encoding="utf-8") as f:
             return [json.loads(l) for l in f if l.strip()]
 
     train, valid = encode(tok, read("train"), a.max_len), encode(tok, read("valid"), a.max_len)

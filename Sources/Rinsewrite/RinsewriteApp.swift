@@ -64,6 +64,7 @@ enum Snapshot {
                 let host = NSHostingController(rootView: SettingsPageView(page: page, state: state)
                     .frame(width: 560, height: 430))
                 let window = NSWindow(contentViewController: host)
+                window.isReleasedWhenClosed = false
                 window.styleMask = [.titled, .closable, .fullSizeContentView]
                 window.titlebarAppearsTransparent = true
                 window.appearance = NSAppearance(named: appearance)

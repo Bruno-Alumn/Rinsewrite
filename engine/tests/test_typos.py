@@ -1,5 +1,5 @@
 """Fast-typing typos (swaps, missed/doubled keys). Scores word-level match vs a reference."""
-import re, sys, time
+import os, re, sys
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
 CASES = [  # (typed, what was meant — compared case/punctuation-insensitively)

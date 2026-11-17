@@ -169,7 +169,6 @@ private struct ShortcutPage: View {
 private struct MemoryPage: View {
     @ObservedObject var state: AppState
     @State private var memoryMB: Int?
-    private let refresh = Timer.publish(every: 2, on: .main, in: .common).autoconnect()
 
     var body: some View {
         Form {
@@ -196,8 +195,13 @@ private struct MemoryPage: View {
                 formFooter("While loaded the model uses about 1.5 GB. Freed, Rinsewrite uses about 0.3 GB, and the next rinse takes about 1.5 seconds while the model loads again.")
             }
         }
-        .onAppear { memoryMB = state.engineMemoryMB() }
-        .onReceive(refresh) { _ in memoryMB = state.engineMemoryMB() }
+        .task {
+            while !Task.isCancelled {
+                let mb = state.engineMemoryMB()
+                if mb != memoryMB { memoryMB = mb }
+                try? await Task.sleep(for: .seconds(2))
+            }
+        }
     }
 }
 
@@ -210,8 +214,7 @@ private struct GeneralPage: View {
         Form {
             AttentionSection(state: state)
             Section {
-                Toggle("Open Rinsewrite at login", isOn: Binding(
-                    get: { state.opensAtLogin }, set: { state.opensAtLogin = $0 }))
+                Toggle("Open Rinsewrite at login", isOn: $state.opensAtLogin)
                 LabeledContent("Accessibility access") {
                     if state.accessibilityTrusted {
                         Label("Allowed", systemImage: "checkmark.circle.fill")

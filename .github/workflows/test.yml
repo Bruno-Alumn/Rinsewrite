@@ -5,6 +5,12 @@ on:
     branches: [main]
   pull_request:
 
+# A new push to a pull request cancels that PR's older run. Pushes to main
+# each get their own group, so they never queue behind or cancel each other.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   unit:
     name: Unit tests
