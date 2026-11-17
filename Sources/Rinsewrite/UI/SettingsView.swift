@@ -72,6 +72,10 @@ private struct AttentionSection: View {
                     Image(systemName: status.symbol)
                         .foregroundStyle(.orange)
                 }
+                if status == .notInstalled {
+                    Button("Install Engine…") { EngineClient.openInstaller() }
+                        .frame(maxWidth: .infinity, alignment: .trailing)
+                }
                 if status == .needsAccess {
                     HStack {
                         Button("Reset…", action: confirmAccessibilityReset)
@@ -209,6 +213,7 @@ private struct MemoryPage: View {
 
 private struct GeneralPage: View {
     @ObservedObject var state: AppState
+    @ObservedObject var updater = Updater.shared
 
     var body: some View {
         Form {
@@ -225,7 +230,22 @@ private struct GeneralPage: View {
                 }
             }
             Section {
-                LabeledContent("Version", value: Self.version)
+                Toggle("Check automatically", isOn: $updater.checksAutomatically)
+                UpdateStatusView(updater: updater)
+                if let notes = updater.availableRelease?.notesPreview {
+                    Text(notes)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(8)
+                }
+            } header: {
+                Text("Updates")
+            } footer: {
+                if updater.availableRelease != nil && Updater.isAdHocSigned {
+                    formFooter("After updating, macOS may ask you to allow Accessibility access again.")
+                }
+            }
+            Section {
                 HStack {
                     Button("Show Welcome Window") { WelcomeWindow.shared.show() }
                     Spacer()
@@ -236,14 +256,10 @@ private struct GeneralPage: View {
         }
     }
 
-    static var version: String {
-        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "dev"
-    }
-
     /// A new GitHub issue with the versions filled in.
     private func report() {
         let os = ProcessInfo.processInfo.operatingSystemVersionString
-        let body = "**Rinsewrite** \(Self.version), macOS \(os)\n\n**What happened:**\n\n**What you expected:**\n"
+        let body = "**Rinsewrite** \(AppVersion.current), macOS \(os)\n\n**What happened:**\n\n**What you expected:**\n"
         var url = URLComponents(string: "https://github.com/Bruno-Alumn/Rinsewrite/issues/new")!
         url.queryItems = [URLQueryItem(name: "body", value: body)]
         if let link = url.url { NSWorkspace.shared.open(link) }

@@ -17,3 +17,7 @@ on each [release](https://github.com/Bruno-Alumn/Rinsewrite/releases).
 - Runs LiquidAI's LFM3 1.7B on your Mac with MLX. A typical message takes
   about 0.1 to 0.5 seconds, and nothing you type leaves your Mac.
 - Free Memory When Idle unloads the model after a while you choose.
+- Install Engine… in the menu sets up the language engine (Python with MLX
+  and the model, about 1 GB) the first time, in a Terminal window.
+- Checks GitHub for new releases once a day and installs them in place,
+  keeping your Accessibility permission. Turn it off in Settings › General.

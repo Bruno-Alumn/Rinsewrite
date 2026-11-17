@@ -39,6 +39,7 @@ bundle: build
 	cp Resources/Info.plist $(BUNDLE)/Contents/
 	cp Resources/AppIcon.icns $(BUNDLE)/Contents/Resources/
 	cp $(ENGINE_FILES) $(BUNDLE)/Contents/Resources/engine/
+	cp scripts/setup_engine.sh $(BUNDLE)/Contents/Resources/engine/
 	@if [ -f engine/adapter/adapters.safetensors ]; then cp -R engine/adapter $(BUNDLE)/Contents/Resources/engine/; fi
 	cp CHANGELOG.md $(BUNDLE)/Contents/Resources/
 	scripts/sign_app.sh $(BUNDLE) "$(CODESIGN_ID)"

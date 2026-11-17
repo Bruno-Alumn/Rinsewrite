@@ -77,11 +77,22 @@ final class AppState: ObservableObject {
         registerHotKey()
         // macOS doesn't announce a new Accessibility grant; check until it arrives.
         trustTimer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in
-            MainActor.assumeIsolated { self?.refreshTrust() }
+            MainActor.assumeIsolated {
+                self?.refreshTrust()
+                self?.startEngineIfInstalled()
+            }
         }
     }
 
     func shutDown() { engine.stop() }
+
+    /// Starts the engine once Install Engine… finishes; until then a rinse
+    /// can't run, so there's nothing else to wait on.
+    private func startEngineIfInstalled() {
+        guard engineState == .notInstalled, !pinnedForSnapshot,
+              !CommandLine.arguments.contains("--health-check"), EngineClient.isInstalled else { return }
+        engine.start(grammar: grammar, humanize: humanize)
+    }
 
     /// For `--snapshot`: shows the window as it looks once everything is set up.
     func showReadyForSnapshot() {

@@ -69,3 +69,26 @@ final class StatusTests: XCTestCase {
         XCTAssertFalse(Status.ready(note: nil).needsAttention)
     }
 }
+
+final class UpdaterTests: XCTestCase {
+    func testVersionComparison() {
+        XCTAssertTrue(AppVersion.isNewer("1.10", than: "1.9"))
+        XCTAssertTrue(AppVersion.isNewer("1.0.1", than: "1.0"))
+        XCTAssertFalse(AppVersion.isNewer("1.0", than: "1.0.0"))
+        XCTAssertFalse(AppVersion.isNewer("1.0.0-beta", than: "1.0.0"))
+        XCTAssertFalse(AppVersion.isNewer("0.9", than: "1.0"))
+    }
+
+    func testReleaseParsing() throws {
+        let json = """
+        {"tag_name": "v1.1.0", "html_url": "https://github.com/Bruno-Alumn/Rinsewrite/releases/tag/v1.1.0",
+         "body": "- **Faster.** Rinses start sooner\\n  on long messages.\\n- Fixed a crash.",
+         "assets": [{"name": "Rinsewrite-1.1.0.dmg", "browser_download_url": "https://example.com/a.dmg"},
+                    {"name": "notes.txt", "browser_download_url": "https://example.com/n.txt"}]}
+        """
+        let release = try JSONDecoder().decode(Release.self, from: Data(json.utf8))
+        XCTAssertEqual(release.version, "1.1.0")
+        XCTAssertEqual(release.appArchive?.name, "Rinsewrite-1.1.0.dmg")
+        XCTAssertEqual(release.notesPreview, "• Faster. Rinses start sooner on long messages.\n• Fixed a crash.")
+    }
+}

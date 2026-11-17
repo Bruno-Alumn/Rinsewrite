@@ -27,6 +27,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         MenuSliderItem.grammar.install()
         MenuSliderItem.humanize.install()
         if CommandLine.arguments.contains("--health-check") { return }
+        Updater.shared.startUp()
         // New installs get the welcome window (Accessibility access, the
         // shortcut) until they finish it. Otherwise start in the menu bar.
         if WelcomeWindow.isNeeded() {

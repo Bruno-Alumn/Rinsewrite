@@ -28,7 +28,7 @@ enum Status: Equatable {
         case .needsAccess:
             "Rinsewrite copies your text and pastes the rinsed version back, which macOS allows only with Accessibility access."
         case .notInstalled:
-            "Run make engine in the Rinsewrite folder. It installs MLX and downloads the model, about 1 GB, once."
+            "Choose Install Engine… to set up Python with MLX and download the model, about 1 GB, once. It runs in Terminal so you can follow along."
         case .unloaded:
             "The next rinse takes about 1.5 seconds while the model loads again."
         case .failed(let message): message

@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import os
 
@@ -53,7 +54,24 @@ final class EngineClient {
             ?? Bundle.main.resourceURL!.appendingPathComponent("engine/main.py").path
     }
 
-    static var isInstalled: Bool { FileManager.default.isExecutableFile(atPath: pythonPath) }
+    /// Python is there and setup_engine.sh isn't still adding packages to it
+    /// (it holds an `installing` marker while it runs).
+    static var isInstalled: Bool {
+        FileManager.default.isExecutableFile(atPath: pythonPath)
+            && !FileManager.default.fileExists(atPath: supportDirectory.appendingPathComponent("installing").path)
+    }
+
+    /// Runs the bundled setup_engine.sh in Terminal, where its progress and
+    /// any error stay visible. The app starts the engine once it's done.
+    static func openInstaller() {
+        guard let script = Bundle.main.resourceURL?.appendingPathComponent("engine/setup_engine.sh"),
+              FileManager.default.isExecutableFile(atPath: script.path),
+              let terminal = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.Terminal") else {
+            NSWorkspace.shared.open(URL(string: "https://github.com/Bruno-Alumn/Rinsewrite#install")!)
+            return
+        }
+        NSWorkspace.shared.open([script], withApplicationAt: terminal, configuration: NSWorkspace.OpenConfiguration())
+    }
 
     static var logURL: URL {
         let dir = FileManager.default.urls(for: .libraryDirectory, in: .userDomainMask)[0]

@@ -150,3 +150,51 @@ struct ShortcutRecorder: View {
         state.pauseHotKey(false)
     }
 }
+
+/// The settings window's update row: current version, check status, and
+/// the button that matches it.
+struct UpdateStatusView: View {
+    @ObservedObject var updater: Updater
+
+    var body: some View {
+        LabeledContent {
+            controls
+        } label: {
+            Text("Version \(AppVersion.current)")
+            Text(statusText)
+        }
+    }
+
+    private var statusText: String {
+        switch updater.status {
+        case .idle: "Checks GitHub for new releases."
+        case .checking: "Checking…"
+        case .upToDate: "You're up to date."
+        case .available(let release): "Version \(release.version) is available."
+        case .downloading: "Downloading…"
+        case .installing: "Installing…"
+        case .failed(let message), .installFailed(_, let message): message
+        }
+    }
+
+    @ViewBuilder private var controls: some View {
+        switch updater.status {
+        case .checking, .downloading, .installing:
+            ProgressView().controlSize(.small)
+        case .available(let release):
+            HStack {
+                Button("Release Notes") { NSWorkspace.shared.open(release.pageURL) }
+                Button("Install and Relaunch") { Task { await updater.install(release) } }
+                    .buttonStyle(.borderedProminent)
+            }
+        case .installFailed(let release, _):
+            HStack {
+                Button("Try Again") { Task { await updater.install(release) } }
+                Button("Download from GitHub") { NSWorkspace.shared.open(release.pageURL) }
+                    .buttonStyle(.borderedProminent)
+            }
+        default:
+            Button("Check Now") { Task { await updater.check(userInitiated: true) } }
+        }
+    }
+}

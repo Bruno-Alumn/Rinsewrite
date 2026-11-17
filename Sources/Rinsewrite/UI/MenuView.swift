@@ -5,6 +5,7 @@ import SwiftUI
 /// is in Settings.
 struct MenuView: View {
     @ObservedObject var state: AppState
+    @ObservedObject var updater = Updater.shared
 
     var body: some View {
         let status = state.status
@@ -12,7 +13,10 @@ struct MenuView: View {
         if status == .needsAccess {
             Button("Open System Settings") { Permissions.openSystemSettings() }
         }
-        if status.needsAttention, status != .needsAccess {
+        if status == .notInstalled {
+            Button("Install Engine…") { EngineClient.openInstaller() }
+        }
+        if status.needsAttention, status != .needsAccess, status != .notInstalled {
             Button("What's Wrong?") { explain(status) }
         }
         Divider()
@@ -31,6 +35,9 @@ struct MenuView: View {
         Text(MenuSliderItem.humanize.heading)
         Divider()
 
+        if let release = updater.availableRelease {
+            Button("Update to \(release.version)…") { MainWindow.shared.show(.general) }
+        }
         Button("Settings…") { MainWindow.shared.show() }
             .keyboardShortcut(",")
         Divider()

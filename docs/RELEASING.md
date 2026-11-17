@@ -25,7 +25,17 @@ xcrun notarytool store-credentials tuckaway-notary --apple-id <id> --team-id 22R
 
 ## The engine
 
-The app bundle carries the engine's Python files (`engine/`), not Python
-itself or the model. `make engine` installs both on the Mac that runs it.
-Shipping a self-contained download (a bundled Python and a first-run model
-download) is the next step before a public release.
+The app bundle carries the engine's Python files (`engine/`) and
+`setup_engine.sh`, not Python itself or the model. **Install Engine…** in the
+app runs that script in Terminal, which installs both in Application Support;
+`make engine` does the same from a clone. An update replaces the app only, so
+the engine carries over. A release that changes `engine/requirements.txt`
+should say to choose Install Engine… again (it only adds what's missing).
+
+## Updates
+
+The app checks `releases/latest` once a day and offers the disk image whose
+name starts with `Rinsewrite`. It installs it only if the app inside has the
+same bundle ID and version as the release tag and meets the running app's
+designated requirement, so a release must keep the `v<version>` tag, the
+`Rinsewrite-<version>.dmg` name and the Developer ID signature.

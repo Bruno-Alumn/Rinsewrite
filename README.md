@@ -8,6 +8,9 @@
 
 A native menu bar app that fixes the text you're typing, in any app, with one shortcut and a language model that runs on your Mac.
 
+<a href="https://github.com/Bruno-Alumn/Rinsewrite/releases/latest"><img src="https://img.shields.io/badge/Download_for_macOS-001BC4?style=for-the-badge&logo=apple&logoColor=white" alt="Download Rinsewrite for macOS" height="36"></a>
+
+<a href="https://github.com/Bruno-Alumn/Rinsewrite/releases/latest"><img src="https://img.shields.io/github/v/release/Bruno-Alumn/Rinsewrite?style=flat-square&color=001BC4&label=release" alt="Latest release"></a>
 <img src="https://img.shields.io/badge/macOS-13%2B-1f2937?style=flat-square&logo=apple&logoColor=white" alt="macOS 13 or later">
 <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-2774c8?style=flat-square" alt="MIT license"></a>
 <a href="https://github.com/Bruno-Alumn/Rinsewrite/actions/workflows/test.yml"><img src="https://img.shields.io/github/actions/workflow/status/Bruno-Alumn/Rinsewrite/test.yml?style=flat-square&label=tests" alt="Tests"></a>
@@ -60,19 +63,20 @@ writing, and nothing you type ever leaves your Mac.
 
 ## Install
 
-1. Install the Xcode command line tools and [uv](https://docs.astral.sh/uv/).
-2. Clone the repository and run `make engine`. It installs MLX and
-   downloads the model, about 1 GB, once.
-3. Run `make install`, then grant the [Accessibility permission](#permissions)
-   it asks for.
+1. Download `Rinsewrite-<version>.dmg` from the
+   [latest release](https://github.com/Bruno-Alumn/Rinsewrite/releases/latest).
+2. Open it and drag **Rinsewrite** into **Applications**.
+3. Launch it, grant the [Accessibility permission](#permissions) it asks
+   for, and choose **Install Engine…** in the menu. It sets up Python with
+   MLX and downloads the model, about 1 GB, once, in a Terminal window.
+   Install [uv](https://docs.astral.sh/uv/) first if you don't have
+   Python 3.10 or later.
 
-Rinsewrite runs on Apple silicon Macs with macOS 13 or later.
+Rinsewrite runs on Apple silicon Macs with macOS 13 or later and updates
+itself from new releases.
 
-> **A note about signing:** builds made on the maintainer's Mac are signed
-> with a Developer ID, so your permission carries over from one build to the
-> next. Builds made elsewhere are signed ad-hoc and ask for Accessibility
-> again after each rebuild. A notarized download is coming with the first
-> release.
+Releases are signed with a Developer ID and notarized by Apple, and your
+permissions carry over from one version to the next.
 
 ## Using Rinsewrite
 
@@ -128,8 +132,10 @@ If Settings › Shortcut says another app uses the keys, choose different ones.
 <details>
 <summary><strong>"Engine not installed"</strong></summary>
 
-Run `make engine` in the Rinsewrite folder. It sets up Python with MLX in
-`~/Library/Application Support/Rinsewrite` and downloads the model.
+Choose **Install Engine…** in the menu (or run `make engine` in a clone of
+the repository). It sets up Python with MLX in
+`~/Library/Application Support/Rinsewrite` and downloads the model. If it
+stops with an error, the Terminal window says why.
 </details>
 
 <details>
@@ -155,8 +161,9 @@ Rinsewrite has no accounts, analytics or telemetry, and it never sends what
 you type anywhere. The text you rinse goes from the app to the engine
 process on your Mac and back; neither keeps it.
 
-Its only network requests happen when you run `make engine`: Python
-packages from PyPI and the model from Hugging Face.
+Its only network requests are installing the engine (Python packages from
+PyPI and the model from Hugging Face) and checking GitHub for a new release
+once a day, which you can turn off in Settings › General.
 
 ### Permissions
 
